@@ -1,76 +1,84 @@
 import sqlite3
 import re
 import pandas as pd
+import streamlit as st
+import json
 
-# Chemin vers la base de données locale
 DB_PATH = "turf_analytics.db"
 
 def get_conn():
-    """Crée une connexion à la base de données SQLite."""
-    return sqlite3.connect(DB_PATH)
+    return sqlite3.connect(DB_PATH, check_same_thread=False)
 
 def init_db():
-    """Initialise la structure de la base de données."""
-    conn = get_conn()
-    
-    # Table 1 : Sélections (Pour le programme importé le matin)
-    conn.execute("""CREATE TABLE IF NOT EXISTS selections (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, 
-        date TEXT, 
-        hippodrome TEXT, 
-        course_num TEXT, 
-        cheval TEXT, 
-        numero INTEGER, 
-        cote REAL, 
-        musique TEXT DEFAULT '', 
-        corde TEXT DEFAULT '', 
-        ferreur TEXT DEFAULT '')""")
-    
-    # Table 2 : Paris (Pour tes résultats réels et ton historique financier)
-    conn.execute("""CREATE TABLE IF NOT EXISTS paris (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, 
-        date TEXT, 
-        hippodrome TEXT, 
-        course_num TEXT, 
-        cheval TEXT, 
-        numero INTEGER, 
-        cote REAL, 
-        mise REAL, 
-        resultat TEXT, 
-        rapport REAL, 
-        gain_net REAL)""")
-    
-    conn.commit()
-    conn.close()
+    with get_conn() as conn:
+        cursor = conn.cursor()
+        # On ajoute json_data pour stocker "tout" l'import
+        cursor.execute("""CREATE TABLE IF NOT EXISTS selections (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, 
+            date TEXT, 
+            hippodrome TEXT, 
+            course_num TEXT, 
+            cheval TEXT, 
+            numero INTEGER, 
+            cote REAL, 
+            musique TEXT, 
+            corde TEXT, 
+            ferreur TEXT,
+            json_data TEXT)""") # <--- NOUVEAU
+        
+        cursor.execute("""CREATE TABLE IF NOT EXISTS paris (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, 
+            date TEXT, 
+            hippodrome TEXT, 
+            course_num TEXT, 
+            cheval TEXT, 
+            numero INTEGER, 
+            cote REAL, 
+            mise REAL, 
+            resultat TEXT, 
+            rapport REAL, 
+            gain_net REAL,
+            type_pari TEXT DEFAULT 'Simple Gagnant',
+            mode_pari TEXT DEFAULT '-')""")
+        conn.commit()
+
+def clean_text(text):
+    return str(text).strip().upper() if text and not pd.isna(text) else ""
 
 def get_course_label(val):
-    """
-    Nettoie les codes techniques des fichiers CSV.
-    Exemple : 'R1C101' devient 'C1'.
-    """
     try:
-        s = str(val)
-        # Cherche le numéro après le 'C'
-        match = re.search(r'C(\d+)', s)
+        match = re.search(r'C(\d+)', str(val))
         if match:
             c_num = match.group(1)
-            # Si le code est R1C101, on extrait juste le '1'
             return f"C{c_num[0]}" if len(c_num) > 1 else f"C{c_num}"
-        return s
-    except: 
-        return "C?"
+        return str(val)
+    except: return "C?"
 
 def clean_float(value):
-    """
-    Nettoie les nombres et arrondit à 1 chiffre après la virgule.
-    Exemple : '41000,0' devient 41000.0 ou '7,42' devient 7.4.
-    """
     try:
         if isinstance(value, str):
-            # Remplace la virgule par un point et retire les symboles €
             value = value.replace(',', '.').replace('€', '').strip()
-        
-        # On transforme en nombre et on arrondit à 1 décimale
-        return round(float(value), 1)
-    except: 
-        return 0.0
+        num = round(float(value), 1)
+        return num if num > 0 else 1.0
+    except: return 1.0
+
+def run_query(query, params=(), commit=False):
+    conn = get_conn()
+    cursor = conn.cursor()
+    result = None
+    try:
+        cursor.execute(query, params)
+        if commit:
+            conn.commit()
+        else:
+            data = cursor.fetchall()
+            if cursor.description:
+                cols = [column[0] for column in cursor.description]
+                result = pd.DataFrame(data, columns=cols)
+    except Exception as e:
+        if "duplicate column name" not in str(e):
+            st.error(f"Erreur SQL : {e}")
+    finally:
+        cursor.close()
+        conn.close()
+    return result
