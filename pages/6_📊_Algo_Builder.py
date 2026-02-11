@@ -1,23 +1,24 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from utils import get_conn, run_query, clean_text
+import json
+from utils import get_conn, run_query
 
-st.set_page_config(layout="wide")
+st.set_page_config(layout="wide", page_title="Algo Builder Pro")
 
-# --- STYLE ---
+# --- STYLE CSS ---
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;900&display=swap');
     .stApp { background-color: #F8FAFC; color: #000; font-family: 'Outfit', sans-serif; }
-    .main-title { font-weight: 900; font-size: 2.5rem; color: #000; border-bottom: 4px solid #3A7BD5; padding-bottom:10px; }
-    .card { background: white; padding: 20px; border-radius: 10px; border: 1px solid #E2E8F0; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+    .main-title { font-weight: 900; font-size: 2.5rem; color: #1E293B; border-bottom: 4px solid #3A7BD5; padding-bottom:10px; }
+    .stTextArea textarea { font-family: 'Courier New', monospace; background-color: #F1F5F9; }
 </style>
 """, unsafe_allow_html=True)
 
 st.markdown('<p class="main-title">🧪 Algo Builder & Stratégies</p>', unsafe_allow_html=True)
 
-# --- INITIALISATION DE LA TABLE DES FORMULES ---
+# --- INITIALISATION SQL ---
 with get_conn() as conn:
     conn.execute("""CREATE TABLE IF NOT EXISTS algos (
         id INTEGER PRIMARY KEY AUTOINCREMENT, 
@@ -26,82 +27,101 @@ with get_conn() as conn:
         description TEXT)""")
     conn.commit()
 
-# --- CHARGEMENT DES DONNÉES DU JOUR ---
-date_today = st.date_input("Date du test", value=pd.Timestamp.now())
-df = run_query("SELECT * FROM selections WHERE date = ?", (str(date_today),))
+# --- CHARGEMENT DES DONNÉES ---
+date_today = st.date_input("Choisir une date pour le test", value=pd.Timestamp.now())
+raw_data = run_query("SELECT * FROM selections WHERE date = ?", (str(date_today),))
 
-# --- INTERFACE ---
+# --- LAYOUT ---
 col_sidebar, col_main = st.columns([1, 2])
 
 with col_sidebar:
     st.subheader("📚 Ma Bibliothèque")
-    
-    # Liste des algos sauvés
     algos_df = run_query("SELECT * FROM algos")
     
-    if not algos_df.empty:
-        selected_algo_nom = st.selectbox("Charger un Algo :", ["--- Nouveau ---"] + algos_df['nom'].tolist())
-    else:
-        selected_algo_nom = "--- Nouveau ---"
+    selected_algo_nom = st.selectbox("Charger un Algo :", ["--- Nouveau ---"] + algos_df['nom'].tolist()) if not (algos_df is None or algos_df.empty) else "--- Nouveau ---"
     
     st.divider()
-    st.info("📊 **Aide Mémoire**\n- `log()` = Logarithme (pour lisser)\n- `sqrt()` = Racine carrée\n- `abs()` = Valeur absolue\n- `* / + -` = Opérateurs")
+    st.info("📊 **Aide Mémoire**\n- `log(x)` : Logarithme\n- `sqrt(x)` : Racine carrée\n- Noms : IA_Gagnant, Cote, ELO_Cheval")
 
 with col_main:
-    # Récupération des données si un algo est sélectionné
-    current_nom = ""
-    current_formule = ""
-    current_desc = ""
+    current_nom, current_formule, current_desc = "", "", ""
     
     if selected_algo_nom != "--- Nouveau ---":
-        row = algos_df[algos_df['nom'] == selected_algo_nom].iloc[0]
-        current_nom = row['nom']
-        current_formule = row['formule']
-        current_desc = row['description']
+        row_algo = algos_df[algos_df['nom'] == selected_algo_nom].iloc[0]
+        current_nom, current_formule, current_desc = row_algo['nom'], row_algo['formule'], row_algo['description']
 
     with st.container(border=True):
         st.subheader("🛠 Édition de l'Algo")
         nom_algo = st.text_input("Nom de la stratégie", value=current_nom)
-        formule_algo = st.text_area("Formule (ex: (IA_GAGNANT * 2) / log(COTE+1))", value=current_formule)
-        desc_algo = st.text_area("À quoi sert cette formule ? (Explication)", value=current_desc)
+        formule_algo = st.text_area("Formule mathématique", value=current_formule, placeholder="Ex: (IA_Gagnant * 100) / log(Cote + 1)")
+        desc_algo = st.text_area("Explication", value=current_desc)
         
         c1, c2, c3 = st.columns(3)
-        if c1.button("💾 Sauvegarder / Modifier", type="primary", use_container_width=True):
-            run_query("INSERT OR REPLACE INTO algos (nom, formule, description) VALUES (?, ?, ?)", 
-                      (nom_algo, formule_algo, desc_algo), commit=True)
-            st.success("Stratégie enregistrée !")
+        if c1.button("💾 Sauvegarder", type="primary", use_container_width=True):
+            run_query("INSERT OR REPLACE INTO algos (nom, formule, description) VALUES (?, ?, ?)", (nom_algo, formule_algo, desc_algo), commit=True)
             st.rerun()
             
         if c2.button("🗑 Supprimer", use_container_width=True):
             run_query("DELETE FROM algos WHERE nom = ?", (nom_algo,), commit=True)
-            st.warning("Algo supprimé.")
             st.rerun()
 
         if c3.button("🚀 Tester l'Algo", use_container_width=True):
-            if df is not None and not df.empty:
+            if not formule_algo.strip():
+                st.error("Saisissez une formule.")
+            elif raw_data is not None and not raw_data.empty:
                 try:
-                    # Préparation des données (Renommage pour compatibilité)
-                    df_calc = df.copy()
-                    df_calc = df_calc.rename(columns={'cote': 'COTE', 'numero': 'NUM'})
+                    # 1. Extraction JSON
+                    list_dicts = []
+                    for _, r in raw_data.iterrows():
+                        d = json.loads(r['json_data']) if r['json_data'] else {}
+                        d.update({
+                            'Cote': r['cote'], 
+                            'Numero': r['numero'], 
+                            'Cheval': r['cheval'], 
+                            'Course': r['course_num'], 
+                            'hippodrome': r['hippodrome']
+                        })
+                        list_dicts.append(d)
                     
-                    # Simulation de colonnes si absentes pour éviter les crashs
-                    for col in ['IA_GAGNANT', 'SIGMA', 'TX_VICTOIRE', 'ELO_CHEVAL']:
-                        if col not in df_calc.columns:
-                            df_calc[col] = np.random.uniform(1, 10, len(df_calc))
-                    
-                    # CALCUL
-                    df_calc['SCORE'] = df_calc.eval(formule_algo.replace('ln(', 'log('))
-                    df_calc = df_calc.sort_values('SCORE', ascending=False)
+                    df_test = pd.DataFrame(list_dicts)
+
+                    # 2. NETTOYAGE (Version SANS errors='ignore' pour supprimer le FutureWarning)
+                    for col in df_test.columns:
+                        if df_test[col].dtype == 'object':
+                            # Nettoyage des virgules
+                            df_test[col] = df_test[col].astype(str).str.replace(',', '.')
+                            # Tentative de conversion propre
+                            try:
+                                df_test[col] = pd.to_numeric(df_test[col])
+                            except (ValueError, TypeError):
+                                continue # Si c'est du texte (ex: Cheval), on laisse tel quel sans erreur
+
+                    # 3. MOTEUR DE CALCUL
+                    def eval_algo(row, code):
+                        context = row.to_dict()
+                        context.update({'log': np.log, 'sqrt': np.sqrt, 'abs': np.abs})
+                        # On supporte ln() et log()
+                        safe_code = code.replace('ln(', 'log(')
+                        return eval(safe_code, {"__builtins__": {}}, context)
+
+                    df_test['SCORE'] = df_test.apply(lambda r: eval_algo(r, formule_algo), axis=1)
+                    df_res = df_test.dropna(subset=['SCORE']).sort_values(['Course', 'SCORE'], ascending=[True, False])
                     
                     st.divider()
                     st.subheader(f"🏆 Résultats : {nom_algo}")
-                    st.info(f"💡 **Objectif :** {desc_algo}")
                     
-                    for hippo in df_calc['hippodrome'].unique():
-                        st.write(f"**🏟️ {hippo}**")
-                        view = df_calc[df_calc['hippodrome'] == hippo]
-                        st.dataframe(view[['course_num', 'NUM', 'cheval', 'COTE', 'SCORE']].style.highlight_max(axis=0, subset=['SCORE'], color='#D1FAE5'), use_container_width=True)
+                    for hippo in df_res['hippodrome'].unique():
+                        st.markdown(f"### 🏟️ {hippo}")
+                        view = df_res[df_res['hippodrome'] == hippo]
+                        cols = ['Course', 'Numero', 'Cheval', 'Cote', 'SCORE']
+                        if 'IA_Gagnant' in view.columns: cols.insert(4, 'IA_Gagnant')
+                        
+                        st.dataframe(
+                            view[cols].style.background_gradient(subset=['SCORE'], cmap='YlGnBu').format({'SCORE': '{:.2f}'}), 
+                            use_container_width=True, 
+                            hide_index=True
+                        )
                 except Exception as e:
-                    st.error(f"Erreur dans la formule : {e}")
+                    st.error(f"Erreur : {e}")
             else:
-                st.warning("Importez des données pour tester.")
+                st.warning("Aucune donnée pour cette date.")
