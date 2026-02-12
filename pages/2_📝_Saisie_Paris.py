@@ -16,7 +16,7 @@ st.markdown("""
 
 st.markdown('<p class="main-title">📝 Gestion des Paris Pro</p>', unsafe_allow_html=True)
 
-# --- FONCTION SQL SÉCURISÉE (ANTI-LOCK) ---
+# --- FONCTION SQL SÉCURISÉE ---
 def run_query(query, params=(), commit=False):
     conn = get_conn()
     cursor = conn.cursor()
@@ -31,42 +31,51 @@ def run_query(query, params=(), commit=False):
                 cols = [column[0] for column in cursor.description]
                 result = pd.DataFrame(result, columns=cols)
     except Exception as e:
-        # On ignore les erreurs de colonnes déjà existantes
-        if "already exists" not in str(e) and "duplicate column name" not in str(e):
-            st.error(f"Erreur SQL : {e}")
+        st.error(f"Erreur SQL : {e}")
     finally:
         cursor.close()
         conn.close()
     return result
 
-# --- INITIALISATION INTELLIGENTE ---
-# On vérifie si les colonnes existent avant de les ajouter (évite les bandeaux rouges)
+# --- INITIALISATION ---
 with get_conn() as conn:
     cursor = conn.cursor()
     cursor.execute("PRAGMA table_info(paris)")
     existing_cols = [col[1] for col in cursor.fetchall()]
-    if "type_pari" not in existing_cols:
-        cursor.execute("ALTER TABLE paris ADD COLUMN type_pari TEXT DEFAULT 'Simple Gagnant'")
-    if "mode_pari" not in existing_cols:
-        cursor.execute("ALTER TABLE paris ADD COLUMN mode_pari TEXT DEFAULT '-'")
+    for col in ["type_pari", "mode_pari"]:
+        if col not in existing_cols:
+            cursor.execute(f"ALTER TABLE paris ADD COLUMN {col} TEXT DEFAULT '-'")
     conn.commit()
 
 # --- FORMULAIRE DE SAISIE ---
 with st.expander("➕ Placer un nouveau pari", expanded=True):
-    with st.form("manual_entry"):
-        c1, c2, c3 = st.columns(3)
-        date_select = c1.date_input("Date")
+    # ÉTAPE 1 : Sélection de la Date et Hippodrome HORS FORMULAIRE pour l'interactivité
+    c1, c2, c3 = st.columns(3)
+    date_select = c1.date_input("Date")
+    
+    # Récupération des données selon la date
+    prog_data = run_query("SELECT DISTINCT hippodrome, course_num FROM selections WHERE date = ?", (str(date_select),))
+    
+    if prog_data is not None and not prog_data.empty:
+        # Sélection de l'hippodrome
+        hippo_list = sorted(prog_data['hippodrome'].unique().tolist())
+        hippo = c2.selectbox("Hippodrome", hippo_list)
         
-        prog_data = run_query("SELECT DISTINCT hippodrome, course_num FROM selections WHERE date = ?", (str(date_select),))
-        hippo_list = sorted(prog_data['hippodrome'].unique().tolist()) if prog_data is not None and not prog_data.empty else []
-        hippo = c2.selectbox("Hippodrome", hippo_list if hippo_list else ["Aucun programme"])
+        # ÉTAPE 2 : Filtrage dynamique des courses selon l'hippodrome choisi
+        courses_filtrees = prog_data[prog_data['hippodrome'] == hippo]['course_num'].unique().tolist()
         
-        course_list = sorted(prog_data[prog_data['hippodrome'] == hippo]['course_num'].unique().tolist()) if hippo_list else []
-        course = c3.selectbox("Course", course_list if course_list else ["-"])
-        
+        # Nettoyage pour n'avoir que C1, C2... (enlève les préfixes R1 si présents)
+        course_list = sorted([str(c).replace('R1', '').replace('R2', '').replace('R3', '').replace('R4', '') for c in courses_filtrees])
+        course = c3.selectbox("Course", course_list)
+    else:
+        hippo = c2.selectbox("Hippodrome", ["Aucun programme"])
+        course = c3.selectbox("Course", ["-"])
+
+    # ÉTAPE 3 : Le reste des champs dans un formulaire pour validation groupée
+    with st.form("manual_entry_details"):
         st.divider()
         g1, g2 = st.columns([2, 1])
-        type_pari = g1.selectbox("Type de Pari", ["Simple Gagnant", "Simple Placé", "Couplé Gagnant", "Couplé Placé", "Trio", "Trio Ordre", "2/4", "Z4", "Z5", "Multi", "Quarté", "Quinté"])
+        type_pari = g1.selectbox("Type de Pari", ["Simple Gagnant", "Simple Placé", "Couplé Gagnant", "Couplé Placé", "Trio", "2/4", "Multi", "Quinté"])
         chev = g2.text_input("Chevaux joués (ex: 1-4-8)")
         
         st.divider()
@@ -76,59 +85,42 @@ with st.expander("➕ Placer un nouveau pari", expanded=True):
         rapport = f3.number_input("Rapport total (€)", 0.0, step=0.1)
 
         if st.form_submit_button("💾 Enregistrer le pari"):
-            gn = (rapport - mise) if res == "Gagné" else (-mise if res == "Perdu" else 0)
-            query = """INSERT INTO paris (date, hippodrome, course_num, cheval, cote, mise, resultat, rapport, gain_net, type_pari, mode_pari) 
-                       VALUES (?,?,?,?,?,?,?,?,?,?,?)"""
-            run_query(query, (str(date_select), hippo, course, chev, 0.0, float(mise), res, float(rapport), float(gn), type_pari, "-"), commit=True)
-            st.success("Enregistré !")
-            st.rerun()
+            if hippo != "Aucun programme":
+                gn = (rapport - mise) if res == "Gagné" else (-mise if res == "Perdu" else 0)
+                query = """INSERT INTO paris (date, hippodrome, course_num, cheval, cote, mise, resultat, rapport, gain_net, type_pari, mode_pari) 
+                           VALUES (?,?,?,?,?,?,?,?,?,?,?)"""
+                run_query(query, (str(date_select), hippo, course, chev, 0.0, float(mise), res, float(rapport), float(gn), type_pari, "-"), commit=True)
+                st.success(f"Pari enregistré pour {hippo} {course} !")
+                st.rerun()
+            else:
+                st.error("Veuillez sélectionner un hippodrome valide.")
 
 st.divider()
 
-# --- HISTORIQUE & MODIFICATIONS (LA ZONE QUI MANQUAIT) ---
+# --- HISTORIQUE & MODIFICATIONS ---
 st.subheader("📋 Historique & Modifications")
 df = run_query("SELECT * FROM paris ORDER BY id DESC")
 
 if df is not None and not df.empty:
-    # On force des valeurs par défaut pour les colonnes vides
-    df['type_pari'] = df['type_pari'].fillna('Simple')
-    df['cheval'] = df['cheval'].fillna('-')
-    
-    # Création du label pour le menu de sélection
-    df['label'] = df['id'].astype(str) + " | " + df['date'].astype(str) + " | " + df['type_pari'] + " | " + df['cheval']
-    
-    # MENU DÉROULANT DE SÉLECTION (Textbox)
-    pari_select = st.selectbox("Sélectionner un pari à modifier ou supprimer :", df['label'].tolist())
-    
-    # Récupération du pari sélectionné
+    df['label'] = df['id'].astype(str) + " | " + df['date'].astype(str) + " | " + df['hippodrome'] + " | " + df['course_num']
+    pari_select = st.selectbox("Sélectionner un pari :", df['label'].tolist())
     pari_data = df[df['label'] == pari_select].iloc[0]
-    pari_id = int(pari_data['id'])
-
+    
     col_edit, col_del = st.columns([2, 1])
-
     with col_edit:
-        with st.expander("✏️ Modifier le résultat", expanded=False):
+        with st.expander("✏️ Modifier"):
             with st.form("edit_form"):
-                e1, e2, e3 = st.columns(3)
-                index_res = ["Gagné", "Perdu", "En cours"].index(pari_data['resultat']) if pari_data['resultat'] in ["Gagné", "Perdu", "En cours"] else 0
-                new_res = e1.selectbox("Résultat", ["Gagné", "Perdu", "En cours"], index=index_res)
-                new_mise = e2.number_input("Mise (€)", value=float(pari_data['mise']))
-                new_rap = e3.number_input("Rapport (€)", value=float(pari_data['rapport']))
-                
-                if st.form_submit_button("💾 Valider"):
+                new_res = st.selectbox("Résultat", ["Gagné", "Perdu", "En cours"], index=["Gagné", "Perdu", "En cours"].index(pari_data['resultat']))
+                new_mise = st.number_input("Mise", value=float(pari_data['mise']))
+                new_rap = st.number_input("Rapport", value=float(pari_data['rapport']))
+                if st.form_submit_button("Valider"):
                     new_gn = (new_rap - new_mise) if new_res == "Gagné" else (-new_mise if new_res == "Perdu" else 0)
-                    run_query("UPDATE paris SET resultat=?, mise=?, rapport=?, gain_net=? WHERE id=?", (new_res, new_mise, new_rap, new_gn, pari_id), commit=True)
-                    st.success("Mis à jour !")
+                    run_query("UPDATE paris SET resultat=?, mise=?, rapport=?, gain_net=? WHERE id=?", (new_res, new_mise, new_rap, new_gn, int(pari_data['id'])), commit=True)
                     st.rerun()
-
+    
     with col_del:
-        st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("🗑️ Supprimer ce pari", use_container_width=True):
-            run_query("DELETE FROM paris WHERE id=?", (pari_id,), commit=True)
-            st.warning(f"Pari n°{pari_id} supprimé.")
+        if st.button("🗑️ Supprimer"):
+            run_query("DELETE FROM paris WHERE id=?", (int(pari_data['id']),), commit=True)
             st.rerun()
 
-    # Tableau visuel
-    st.dataframe(df.drop(columns=['label'], errors='ignore'), use_container_width=True)
-else:
-    st.info("Aucun pari trouvé dans la base de données.")
+    st.dataframe(df.drop(columns=['label']), use_container_width=True)
