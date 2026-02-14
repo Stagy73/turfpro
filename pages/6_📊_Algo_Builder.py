@@ -19,6 +19,9 @@ from algo_mode_borda4 import render_borda4
 from filtres_course import render_filtres_course, appliquer_filtres_course
 from filtres_cheval import render_filtres_cheval, appliquer_filtres_cheval
 from filtres_avance import render_filtres_avance, appliquer_filtres_avance
+from algo_export import auto_save_readme, generer_readme, generer_json
+
+PROJECT_ROOT = _root
 
 st.set_page_config(layout="wide", page_title="Algo Builder")
 st.markdown(
@@ -93,17 +96,29 @@ with fa:
 with fb:
     nom_algo = st.text_input("Nom", value=current_nom)
 
-ba, bb, bc = st.columns([1, 1, 3])
+ba, bb, bc, bd = st.columns([1, 1, 1, 2])
 with ba:
     if st.button("💾 Sauver"):
         save_algo(nom_algo, formule_raw)
+        auto_save_readme(run_query, PROJECT_ROOT)
         st.rerun()
 with bb:
     if st.button("🗑️ Effacer"):
         if selected not in FORMULES_PRESET and selected != "--- Nouveau ---":
             delete_algo(selected)
+            auto_save_readme(run_query, PROJECT_ROOT)
             st.rerun()
 with bc:
+    if st.button("📖 Export README"):
+        readme_path, content = generer_readme(run_query, PROJECT_ROOT)
+        json_path, _ = generer_json(run_query, PROJECT_ROOT)
+        st.toast(f"✅ README_ALGOS.md + algos.json générés !")
+        st.download_button(
+            "📥 Télécharger README_ALGOS.md",
+            content.encode('utf-8'),
+            "README_ALGOS.md", "text/markdown"
+        )
+with bd:
     btn_run = st.button("🚀 LANCER", type="primary", use_container_width=True)
 
 # =====================================================

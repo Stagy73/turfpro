@@ -1,0 +1,256 @@
+{
+  "generated": "2026-02-14T17:55:41.053217",
+  "presets": {
+    "🎯 Simple Optimisé (Gagnant)": "IA_Gagnant * 50 + Note_IA_Decimale * 2 + 50 / (Cote if Cote > 0 else 1) + Synergie_JCh * 0.2",
+    "🎲 Duo Optimisé (Couplé)": "(6 - Borda_Rank) * 1 + (6 - Cote_Rank) * 2 + (6 - Popularite_Rank) * 2",
+    "🏇 Trio Optimisé": "IA_Multi * 40 + IA_Trio * 18 + 40 / (Cote if Cote > 0 else 1) + Taux_Place * 0.10",
+    "📊 F11 Polyvalente": "IA_Trio * 18 + Borda * 2.5 + Note_IA_Decimale * 2 + Synergie_JCh * 0.5 + Taux_Place * 0.12 + Taux_Victoire * 0.12 + 60 / (Cote if Cote > 0 else 1) + IA_Gagnant * 15",
+    "🔷 Borda Pure": "Borda * 10 + 50 / (Cote if Cote > 0 else 1)"
+  },
+  "custom": {
+    " F9 - Tout-en-un": {
+      "formule": "IA_Couple * 20 + IA_Trio * 15 + Borda * 2 + (ELO_Cheval - 1500) / 10 + Synergie_JCh * 0.4 + Taux_Place * 0.1 + TPch_90 / 15 + 70 / (Cote if Cote > 0 else 1)",
+      "variables": [
+        "IA_Couple",
+        "IA_Trio",
+        "Borda",
+        "Cote",
+        "ELO_Cheval",
+        "Taux_Place",
+        "TPch_90",
+        "Synergie_JCh"
+      ]
+    },
+    " formule optimale pour ton Algo Builder": {
+      "formule": "(6 - Borda_Rank) * 1 + (6 - Cote_Rank) * 2 + (6 - Popularite_Rank) * 2",
+      "variables": [
+        "Borda",
+        "Borda_Rank",
+        "Cote_Rank",
+        "Popularite_Rank",
+        "Cote",
+        "Popularite"
+      ]
+    },
+    "F10 - Value Bet": {
+      "formule": "IA_Couple * 35 + IA_Gagnant * 25 + (Cote_BZH - Cote) * 5 + 100 / (Cote if Cote > 0 else 1)",
+      "variables": [
+        "IA_Gagnant",
+        "IA_Couple",
+        "Cote",
+        "Cote_BZH"
+      ]
+    },
+    "F4 - IA + Borda + Cote ⭐": {
+      "formule": "IA_Couple * 30 + Borda * 2.5 + Note_IA_Decimale * 2 + 100 / (Cote if Cote > 0 else 1)",
+      "variables": [
+        "IA_Couple",
+        "Note_IA_Decimale",
+        "Borda",
+        "Cote"
+      ]
+    },
+    "F4 - IA + Borda + Cote ⭐value": {
+      "formule": "IA_Couple * 20 + Borda * 3.5 + Note_IA_Decimale * 2 + 100 / (Cote if Cote > 0 else 1)",
+      "variables": [
+        "IA_Couple",
+        "Note_IA_Decimale",
+        "Borda",
+        "Cote"
+      ]
+    },
+    "F5 - Multi-indicateurs ": {
+      "formule": "IA_Trio * 18 + Borda * 2.5 + Note_IA_Decimale * 2 + Synergie_JCh * 0.5 + Taux_Place * 0.12 + Taux_Victoire * 0.12 + 60 / (Cote if Cote > 0 else 1) + IA_Gagnant * 15",
+      "variables": [
+        "IA_Gagnant",
+        "IA_Trio",
+        "Note_IA_Decimale",
+        "Borda",
+        "Cote",
+        "Taux_Victoire",
+        "Taux_Place",
+        "Synergie_JCh"
+      ]
+    },
+    "Joué pastille verte couplé placé plat francais 8-12 +=3 ans": {
+      "formule": "IA_Trio * 15 + IA_Couple * 30 + IA_Gagnant * 20 + Taux_Place * 0.12 + Borda * 2.5 + 70 / (Cote if Cote > 0 else 1)",
+      "variables": [
+        "IA_Gagnant",
+        "IA_Couple",
+        "IA_Trio",
+        "Borda",
+        "Cote",
+        "Taux_Place"
+      ]
+    },
+    "Plat couplé gagnant claude firefox": {
+      "formule": "IA_Trio * 15 + IA_Couple * 30 + IA_Gagnant * 20 + Taux_Place * 0.12 + Borda * 2.5 + 70 / (Cote if Cote > 0 else 1)",
+      "variables": [
+        "IA_Gagnant",
+        "IA_Couple",
+        "IA_Trio",
+        "Borda",
+        "Cote",
+        "Taux_Place"
+      ]
+    },
+    "Plat couplé gagnant claude firefox  attelé pastille orange": {
+      "formule": "IA_Trio * 15 + IA_Couple * 30 + IA_Gagnant * 20 + Taux_Place * 0.12 + Borda * 2.5 + 70 / (Cote if Cote > 0 else 1)",
+      "variables": [
+        "IA_Gagnant",
+        "IA_Couple",
+        "IA_Trio",
+        "Borda",
+        "Cote",
+        "Taux_Place"
+      ]
+    },
+    "Plat couplé gagnant claude firefox  attelé plat v2": {
+      "formule": "IA_Trio * 15 + IA_Couple * 30 + IA_Gagnant * 20 + Taux_Place * 0.12 + Borda * 2.5 + 70 / (Cote if Cote > 0 else 1)",
+      "variables": [
+        "IA_Gagnant",
+        "IA_Couple",
+        "IA_Trio",
+        "Borda",
+        "Cote",
+        "Taux_Place"
+      ]
+    },
+    "Plat couplé gagnant claude firefox monté": {
+      "formule": "IA_Trio * 15 + IA_Couple * 30 + IA_Gagnant * 20 + TPch_90 / 15 + Borda * 2.5 + 70 / (Cote if Cote > 0 else 1)",
+      "variables": [
+        "IA_Gagnant",
+        "IA_Couple",
+        "IA_Trio",
+        "Borda",
+        "Cote",
+        "TPch_90"
+      ]
+    },
+    "Plat couplé gagnant claude firefox plat": {
+      "formule": "IA_Trio * 15 + IA_Couple * 30 + IA_Gagnant * 20 + Taux_Place * 0.12 + Borda * 2.5 + 70 / (Cote if Cote > 0 else 1)",
+      "variables": [
+        "IA_Gagnant",
+        "IA_Couple",
+        "IA_Trio",
+        "Borda",
+        "Cote",
+        "Taux_Place"
+      ]
+    },
+    "Simple": {
+      "formule": "((IA_Gagnant * 2) + Sigma_Horse) / log(Cote + 1)",
+      "variables": [
+        "IA_Gagnant",
+        "Cote",
+        "Sigma_Horse"
+      ]
+    },
+    "Value Finder": {
+      "formule": "((IA_Gagnant * 2) + Sigma_Horse) / log(Cote + 1)",
+      "variables": [
+        "IA_Gagnant",
+        "Cote",
+        "Sigma_Horse"
+      ]
+    },
+    "couplé v4": {
+      "formule": "Note_IA_Decimale * 1.0 + IA_Gagnant * 60 + IA_Couple * 80 + Moy_TPch_90 * 0.1 + Synergie_JCh * 0.15 + Taux_Place * 10 + 50 / Cote + Borda * 0.12 + Turf_Points / 80 + (12 if Note_IA_Decimale_Rank == 1 else 6 if Note_IA_Decimale_Rank <= 3 else 0) + (8 if IA_Couple_Rank == 1 else 4 if IA_",
+      "variables": [
+        "IA_Gagnant",
+        "IA_Couple",
+        "Note_IA_Decimale",
+        "Borda",
+        "IA_Couple_Rank",
+        "Cote",
+        "Taux_Place",
+        "Turf_Points",
+        "TPch_90",
+        "Synergie_JCh"
+      ]
+    },
+    "duo 1 euro": {
+      "formule": "Note_IA_Decimale * 2.0 + IA_Gagnant * 80 + Moy_TPch_90 / 10 + Synergie_JCh / 5 + (15 if Note_IA_Decimale_Rank == 1 else 8 if Note_IA_Decimale_Rank <= 3 else 0) + (10 if IA_Gagnant_Rank == 1 else 5 if IA_Gagnant_Rank <= 3 else 0) + 50 / Cote + Borda * 0.15",
+      "variables": [
+        "IA_Gagnant",
+        "Note_IA_Decimale",
+        "Borda",
+        "Cote",
+        "TPch_90",
+        "Synergie_JCh"
+      ]
+    },
+    "duov2": {
+      "formule": " IA_Couple * 30 + 100 / (Cote if Cote > 0 else 1)",
+      "variables": [
+        "IA_Couple",
+        "Cote"
+      ]
+    },
+    "premuim": {
+      "formule": "(7 if ELO_Cheval_Rank < 2 else 3 if ELO_Cheval_Rank < 3 else 0) + (4 if ELO_Eleveur_Rank < 2 else 0) + (2 if Taux_Place >= 45 else 0) + (4 if Taux_Victoire >= 15 else 0) + (2 if IA_Trio_Rank < 2 else 6 if IA_Trio_Rank < 4 else 0)",
+      "variables": [
+        "IA_Trio",
+        "IA_Trio_Rank",
+        "ELO_Cheval_Rank",
+        "ELO_Cheval",
+        "ELO_Eleveur",
+        "Taux_Victoire",
+        "Taux_Place"
+      ]
+    },
+    "tenkakinju": {
+      "formule": "(7 if ELO_Cheval_Rank < 2 else 3 if ELO_Cheval_Rank < 3 else 0) + (4 if ELO_Eleveur_Rank < 2 else 0) + (2 if Taux_de_Place >= 45 else 0) + (4 if Taux_de_Victoire >= 15 else 0) + (2 if IA_Trio_Rank < 2 else 6 if IA_Trio_Rank < 4 else 0)",
+      "variables": [
+        "IA_Trio",
+        "IA_Trio_Rank",
+        "ELO_Cheval_Rank",
+        "ELO_Cheval",
+        "ELO_Eleveur"
+      ]
+    },
+    "testing": {
+      "formule": "((6 - IA_Couple_Rank) * 4 + (6 - Borda_Rank) * 2.5 + (6 - Cote_Rank) * 2 + (6 - Note_IA_Decimale_Rank) * 1.5) * (1 if IA_Couple_Rank <= 3 else 0) * (1 if Cote_Rank <= 4 else 0) * (1 if Borda_Rank <= 4 else 0)",
+      "variables": [
+        "IA_Couple",
+        "Note_IA_Decimale",
+        "Borda",
+        "Borda_Rank",
+        "Cote_Rank",
+        "IA_Couple_Rank",
+        "Cote"
+      ]
+    },
+    "trio 5 chevaux": {
+      "formule": "IA_Trio * 18 + Borda * 2.5 + Note_IA_Decimale * 2 + Synergie_JCh * 0.5 + Taux_Place * 0.12 + Taux_Victoire * 0.12 + 60 / (Cote if Cote > 0 else 1) + IA_Gagnant * 15",
+      "variables": [
+        "IA_Gagnant",
+        "IA_Trio",
+        "Note_IA_Decimale",
+        "Borda",
+        "Cote",
+        "Taux_Victoire",
+        "Taux_Place",
+        "Synergie_JCh"
+      ]
+    },
+    "trioV2": {
+      "formule": "IA_Multi * 40 + IA_Trio * 18 + 40 / (Cote if Cote > 0 else 1) + Taux_Place * 0.10",
+      "variables": [
+        "IA_Trio",
+        "IA_Multi",
+        "Cote",
+        "Taux_Place"
+      ]
+    },
+    "🎯 Simple Optimisé (Gagnant) plat pastille verte": {
+      "formule": "IA_Gagnant * 50 + Note_IA_Decimale * 2 + 50 / (Cote if Cote > 0 else 1) + Synergie_JCh * 0.2",
+      "variables": [
+        "IA_Gagnant",
+        "Note_IA_Decimale",
+        "Cote",
+        "Synergie_JCh"
+      ]
+    }
+  }
+}
