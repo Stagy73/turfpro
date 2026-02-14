@@ -1,26 +1,45 @@
 """
-algo_mode_trio.py — Mode Trio + Folie (3+1)
+algo_mode_trio.py — Mode Trio + Folie (3+1) avec pastille concordance
 """
 import streamlit as st
 import pandas as pd
 import numpy as np
 from engine import safe_num, safe_float
-from strategies import get_folie_v2
+from strategies import get_folie_v2, calculer_confiance_trio, get_pastille_trio
 from utils_algo import colored_nums, nums_str, get_arrivee, get_confiance
 
 
-def render_trio(df, courses_avec, courses_sans, date_start, date_end, folie_cote_min, folie_taux_min):
+def render_trio(df, courses_avec, courses_sans, date_start, date_end,
+                folie_cote_min, folie_taux_min, filtre_pastille=None):
+
+    if filtre_pastille is None:
+        filtre_pastille = []
+    pastille_map = {"🟢 Haute": "Haute", "🟡 Moyenne": "Moyenne", "🔴 Basse": "Basse"}
+    pastilles_actives = [pastille_map[p] for p in filtre_pastille if p in pastille_map]
 
     if courses_avec:
-        st_f = {'t3_2': 0, 't3_3': 0, 'folie_t3': 0, 'folie_n': 0, 'n': 0, 'mise': 0, 'gains_g': 0, 'gains_p': 0}
+        st_f = {'t3_2': 0, 't3_3': 0, 'folie_t3': 0, 'folie_n': 0, 'n': 0, 'skip': 0, 'total': 0,
+                'mise': 0, 'gains_g': 0, 'gains_p': 0}
         st_ib = {'t3_2': 0, 't3_3': 0, 'folie_t3': 0, 'folie_n': 0, 'n': 0}
-        st_hyb = {'t3_2': 0, 't3_3': 0, 'folie_t3': 0, 'folie_n': 0, 'n': 0, 'mise': 0, 'gains_g': 0, 'gains_p': 0}
+        st_hyb = {'t3_2': 0, 't3_3': 0, 'folie_t3': 0, 'folie_n': 0, 'n': 0,
+                  'mise': 0, 'gains_g': 0, 'gains_p': 0}
         rows_export = []
 
         for cid in courses_avec:
             df_c = df[df['ID_C'] == cid]
             top3 = set(df_c[df_c['classement'].between(1, 3)]['Numero'].astype(int).tolist())
             top1 = set(df_c[df_c['classement'] == 1]['Numero'].astype(int).tolist())
+
+            concordance, detail = calculer_confiance_trio(df_c, 'SCORE')
+            unanime = detail.get('unanime', False)
+            conf_icon, conf_label = get_pastille_trio(concordance, unanime)
+
+            st_f['total'] += 1
+
+            # Filtre pastille
+            if pastilles_actives and conf_label not in pastilles_actives:
+                st_f['skip'] += 1
+                continue
 
             trio_f = df_c.nlargest(3, 'SCORE'); nums_f = set(trio_f['Numero'].astype(int).tolist())
             folie_f = get_folie_v2(df_c, nums_f, 'score', folie_cote_min, folie_taux_min)
@@ -31,8 +50,6 @@ def render_trio(df, courses_avec, courses_sans, date_start, date_end, folie_cote
 
             trio_hyb = df_c.nlargest(3, 'HYBRIDE'); nums_hyb = set(trio_hyb['Numero'].astype(int).tolist())
             folie_hyb = get_folie_v2(df_c, nums_hyb, 'score', folie_cote_min, folie_taux_min)
-
-            confiance = get_confiance([safe_float(trio_f, i, 'SCORE', 0.0) for i in range(3)])
 
             for td, sx, fd in [(trio_f, st_f, folie_f), (trio_ib, st_ib, folie_ib), (trio_hyb, st_hyb, folie_hyb)]:
                 nums = set(td['Numero'].astype(int).tolist()) if len(td) else set()
@@ -64,7 +81,8 @@ def render_trio(df, courses_avec, courses_sans, date_start, date_end, folie_cote
 
             ff_n, ff_c, ff_ok = fi(folie_f); fh_n, fh_c, fh_ok = fi(folie_hyb)
             rows_export.append({
-                'Course': cid, 'Conf': confiance,
+                'Course': cid, 'Conf': conf_icon, 'Conf_Label': conf_label,
+                'Concordance': concordance,
                 'F_N1': safe_num(trio_f, 0), 'F_N2': safe_num(trio_f, 1), 'F_N3': safe_num(trio_f, 2),
                 'F_Hit': f"{hit_f}/3", 'F_Folie': ff_n, 'F_Folie_C': ff_c, 'F_Folie_OK': ff_ok,
                 'H_Hit': f"{hit_h}/3", 'H_Folie': fh_n, 'H_Folie_C': fh_c, 'H_Folie_OK': fh_ok,
@@ -72,6 +90,9 @@ def render_trio(df, courses_avec, courses_sans, date_start, date_end, folie_cote
             })
 
         st.markdown("### 📊 Trio + Folie")
+
+        if pastilles_actives:
+            st.info(f"🎯 **Filtre pastille** : {st_f['n']} jouées / {st_f['total']} total ({st_f['skip']} skip) — {', '.join(pastilles_actives)}")
 
         def show_kpi(lbl, em, sx):
             with st.container(border=True):
@@ -86,12 +107,19 @@ def render_trio(df, courses_avec, courses_sans, date_start, date_end, folie_cote
                     gt = sx['gains_g'] + sx['gains_p']
                     roi = round((gt - sx['mise']) / sx['mise'] * 100, 1) if sx['mise'] > 0 else 0
                     cols[3].metric("💰Mise", f"{sx['mise']:.0f}€")
-                    cols[4].metric("📈ROI", f"{roi}%", f"{gt - sx['mise']:+.1f}€", delta_color="normal" if roi >= 0 else "inverse")
+                    cols[4].metric("📈ROI", f"{roi}%", f"{gt - sx['mise']:+.1f}€",
+                                   delta_color="normal" if roi >= 0 else "inverse")
 
         show_kpi("Formule", "🎯", st_f); show_kpi("IA+Borda", "🤖", st_ib); show_kpi("Hybride", "⚡", st_hyb)
 
+        # Résumé pastilles
+        nb_v = sum(1 for r in rows_export if r['Conf_Label'] == 'Haute')
+        nb_o = sum(1 for r in rows_export if r['Conf_Label'] == 'Moyenne')
+        nb_r = sum(1 for r in rows_export if r['Conf_Label'] == 'Basse')
+        st.caption(f"🟢 {nb_v} haute | 🟡 {nb_o} moyenne | 🔴 {nb_r} basse")
+
         st.divider()
-        st.markdown(f"### 🏁 Courses ({len(courses_avec)})")
+        st.markdown(f"### 🏁 Courses ({len(rows_export)})")
         for row in rows_export:
             cid = row['Course']; df_c = df[df['ID_C'] == cid]
             top3 = set(df_c[df_c['classement'].between(1, 3)]['Numero'].astype(int).tolist())
@@ -102,7 +130,7 @@ def render_trio(df, courses_avec, courses_sans, date_start, date_end, folie_cote
             ok = max(hf, hh) >= 2
             icon = "🥇" if max(hf, hh) == 3 else ("✅" if ok else "❌")
             with st.container(border=True):
-                st.write(f"**{icon} {cid}** {row['Conf']} F:{row['F_Hit']} H:{row['H_Hit']}")
+                st.write(f"**{icon} {row['Conf']} {cid}** — Conc:{row['Concordance']} F:{row['F_Hit']} H:{row['H_Hit']}")
                 c1, c2, c3 = st.columns([4, 4, 4])
                 with c1:
                     nl = [int(r['Numero']) for _, r in trio_f.iterrows()]; ft = ""
@@ -125,11 +153,14 @@ def render_trio(df, courses_avec, courses_sans, date_start, date_end, folie_cote
         st.markdown(f"### ⏳ En attente ({len(courses_sans)})")
         for cid in courses_sans:
             df_c = df[df['ID_C'] == cid]
+            concordance, detail = calculer_confiance_trio(df_c, 'SCORE')
+            conf_icon, conf_label = get_pastille_trio(concordance, detail.get('unanime', False))
+            if pastilles_actives and conf_label not in pastilles_actives:
+                continue
             trio_f = df_c.nlargest(3, 'SCORE'); trio_hyb = df_c.nlargest(3, 'HYBRIDE')
             folie_f = get_folie_v2(df_c, set(trio_f['Numero'].astype(int).tolist()), 'score', folie_cote_min, folie_taux_min)
-            conf = get_confiance([safe_float(trio_f, i, 'SCORE', 0.0) for i in range(3)])
             with st.container(border=True):
-                st.write(f"**📍{cid}** {conf}")
+                st.write(f"**{conf_icon} {cid}** — Conc:{concordance}")
                 c1, c2 = st.columns(2)
                 with c1:
                     txt = nums_str(trio_f)
